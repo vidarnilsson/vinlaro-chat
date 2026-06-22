@@ -1,8 +1,6 @@
 import { createContext, useState, useCallback, type ReactNode } from 'react'
-import { setToken } from '../api/client'
 
 interface AuthState {
-  token: string
   user_id: string
   username: string
 }
@@ -23,12 +21,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [auth, setAuth] = useState<AuthState | null>(null)
 
   const signIn = useCallback((state: AuthState) => {
-    setToken(state.token)
     setAuth(state)
   }, [])
 
   const signOut = useCallback(() => {
-    setToken(null)
     setAuth(null)
   }, [])
 

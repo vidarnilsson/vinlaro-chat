@@ -3,7 +3,6 @@ package config
 import (
 	"fmt"
 	"os"
-	"strconv"
 )
 
 type Config struct {
@@ -14,10 +13,6 @@ type Config struct {
 	DBPassword string
 	DBName     string
 	DBSSLMode  string
-
-	// JWT
-	JWTSecret      string
-	JWTExpiryHours int
 
 	// Kafka
 	KafkaBrokers       string
@@ -35,12 +30,7 @@ type Config struct {
 }
 
 func Load() (*Config, error) {
-	jwtExpiry, err := strconv.Atoi(getEnv("JWT_EXPIRY_HOURS", "24"))
-	if err != nil {
-		return nil, fmt.Errorf("invalid JWT_EXPIRY_HOURS: %w", err)
-	}
-
-	minioSSL, _ := strconv.ParseBool(getEnv("MINIO_USE_SSL", "false"))
+	minioSSL := getEnv("MINIO_USE_SSL", "false") == "true"
 
 	return &Config{
 		DBHost:             getEnv("DB_HOST", "localhost"),
@@ -49,8 +39,6 @@ func Load() (*Config, error) {
 		DBPassword:         getEnv("DB_PASSWORD", "chat"),
 		DBName:             getEnv("DB_NAME", "chat"),
 		DBSSLMode:          getEnv("DB_SSLMODE", "disable"),
-		JWTSecret:          getEnv("JWT_SECRET", "change-me"),
-		JWTExpiryHours:     jwtExpiry,
 		KafkaBrokers:       getEnv("KAFKA_BROKERS", "localhost:9092"),
 		KafkaTopicMessages: getEnv("KAFKA_TOPIC_MESSAGES", "chat.messages"),
 		MinioEndpoint:      getEnv("MINIO_ENDPOINT", "localhost:9000"),

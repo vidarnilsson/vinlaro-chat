@@ -24,7 +24,7 @@ export function LoginPage() {
       const res = tab === 'login'
         ? await login(email, password)
         : await register(username, email, password)
-      signIn({ token: res.token, user_id: res.user_id, username: res.username })
+      signIn({ user_id: res.user_id, username: res.username })
       navigate('/chat', { replace: true })
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong')

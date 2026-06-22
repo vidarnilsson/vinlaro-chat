@@ -2,20 +2,22 @@ package handler
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/vidarnilsson/vinlaro-chat/config"
+	"github.com/google/uuid"
 	"github.com/vidarnilsson/vinlaro-chat/internal/auth"
 	"github.com/vidarnilsson/vinlaro-chat/internal/db"
+	"github.com/vidarnilsson/vinlaro-chat/internal/middleware"
+	"github.com/vidarnilsson/vinlaro-chat/internal/session"
 )
 
 type AuthHandler struct {
 	queries *db.Queries
-	cfg     *config.Config
 }
 
-func NewAuthHandler(queries *db.Queries, cfg *config.Config) *AuthHandler {
-	return &AuthHandler{queries: queries, cfg: cfg}
+func NewAuthHandler(queries *db.Queries) *AuthHandler {
+	return &AuthHandler{queries: queries}
 }
 
 type registerRequest struct {
@@ -29,13 +31,12 @@ type loginRequest struct {
 	Password string `json:"password" binding:"required"`
 }
 
-type authResponse struct {
-	Token    string `json:"token"`
+type userResponse struct {
 	UserID   string `json:"user_id"`
 	Username string `json:"username"`
 }
 
-// Register creates a new user account.
+// Register creates a new user account and starts a session.
 // POST /api/auth/register
 func (h *AuthHandler) Register(c *gin.Context) {
 	var req registerRequest
@@ -56,25 +57,19 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		Password: hashed,
 	})
 	if err != nil {
-		// A real app would check for unique constraint violations here
 		c.JSON(http.StatusConflict, gin.H{"error": "username or email already taken"})
 		return
 	}
 
-	token, err := auth.GenerateToken(user.ID.String(), user.Username, h.cfg.JWTSecret, h.cfg.JWTExpiryHours)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
+	if err := h.startSession(c, user.ID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create session"})
 		return
 	}
 
-	c.JSON(http.StatusCreated, authResponse{
-		Token:    token,
-		UserID:   user.ID.String(),
-		Username: user.Username,
-	})
+	c.JSON(http.StatusCreated, userResponse{UserID: user.ID.String(), Username: user.Username})
 }
 
-// Login authenticates a user and returns a JWT.
+// Login authenticates a user and starts a session.
 // POST /api/auth/login
 func (h *AuthHandler) Login(c *gin.Context) {
 	var req loginRequest
@@ -84,26 +79,54 @@ func (h *AuthHandler) Login(c *gin.Context) {
 	}
 
 	user, err := h.queries.GetUserByEmail(c.Request.Context(), req.Email)
-	if err != nil {
-		// Don't reveal whether the email exists
+	if err != nil || !auth.CheckPassword(req.Password, user.Password) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
 		return
 	}
 
-	if !auth.CheckPassword(req.Password, user.Password) {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid credentials"})
+	if err := h.startSession(c, user.ID); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to create session"})
 		return
 	}
 
-	token, err := auth.GenerateToken(user.ID.String(), user.Username, h.cfg.JWTSecret, h.cfg.JWTExpiryHours)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to generate token"})
-		return
-	}
+	c.JSON(http.StatusOK, userResponse{UserID: user.ID.String(), Username: user.Username})
+}
 
-	c.JSON(http.StatusOK, authResponse{
-		Token:    token,
-		UserID:   user.ID.String(),
-		Username: user.Username,
+// Logout deletes the session and clears the cookie.
+// POST /api/auth/logout
+func (h *AuthHandler) Logout(c *gin.Context) {
+	sessionID := session.GetFromCookie(c)
+	if sessionID != "" {
+		_ = h.queries.DeleteSession(c.Request.Context(), sessionID)
+	}
+	session.ClearCookie(c)
+	c.Status(http.StatusOK)
+}
+
+// Me returns the authenticated user's identity.
+// GET /api/auth/me
+func (h *AuthHandler) Me(c *gin.Context) {
+	c.JSON(http.StatusOK, userResponse{
+		UserID:   c.GetString(middleware.UserIDKey),
+		Username: c.GetString(middleware.UsernameKey),
 	})
+}
+
+func (h *AuthHandler) startSession(c *gin.Context, userID uuid.UUID) error {
+	sessionID, err := session.GenerateID()
+	if err != nil {
+		return err
+	}
+
+	_, err = h.queries.CreateSession(c.Request.Context(), db.CreateSessionParams{
+		ID:        sessionID,
+		UserID:    userID,
+		ExpiresAt: time.Now().Add(7 * 24 * time.Hour),
+	})
+	if err != nil {
+		return err
+	}
+
+	session.SetCookie(c, sessionID)
+	return nil
 }

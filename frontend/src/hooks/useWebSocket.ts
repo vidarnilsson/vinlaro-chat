@@ -6,20 +6,20 @@ const BASE_DELAY_MS = 1000
 
 interface Options {
   channelId: string | null
-  token: string | null
   onMessage: (msg: Message) => void
 }
 
-export function useWebSocket({ channelId, token, onMessage }: Options) {
+export function useWebSocket({ channelId, onMessage }: Options) {
   const wsRef = useRef<WebSocket | null>(null)
   const retriesRef = useRef(0)
   const onMessageRef = useRef(onMessage)
   onMessageRef.current = onMessage
 
   const connect = useCallback(() => {
-    if (!channelId || !token) return
+    if (!channelId) return
 
-    const ws = new WebSocket(`/ws/channels/${channelId}?token=${token}`)
+    // The session cookie is sent automatically by the browser.
+    const ws = new WebSocket(`/ws/channels/${channelId}`)
     wsRef.current = ws
 
     ws.onmessage = (event) => {
@@ -46,14 +46,13 @@ export function useWebSocket({ channelId, token, onMessage }: Options) {
     ws.onerror = () => {
       ws.close()
     }
-  }, [channelId, token])
+  }, [channelId])
 
   useEffect(() => {
     retriesRef.current = 0
     connect()
 
     return () => {
-      // Prevent reconnect loop on intentional close (channel switch / unmount).
       retriesRef.current = MAX_RETRIES
       wsRef.current?.close()
       wsRef.current = null

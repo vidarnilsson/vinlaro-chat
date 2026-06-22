@@ -10,9 +10,9 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/joho/godotenv"
-	"github.com/google/uuid"
 	"github.com/vidarnilsson/vinlaro-chat/config"
 	"github.com/vidarnilsson/vinlaro-chat/internal/db"
 	"github.com/vidarnilsson/vinlaro-chat/internal/handler"
@@ -86,10 +86,10 @@ func main() {
 	log.Println("✓ API Kafka consumer running (group: chat-api)")
 
 	// Handlers
-	authHandler := handler.NewAuthHandler(queries, cfg)
+	authHandler := handler.NewAuthHandler(queries)
 	channelHandler := handler.NewChannelHandler(queries)
 	messageHandler := handler.NewMessageHandler(queries, producer)
-	wsHandler := handler.NewWSHandler(hub, cfg.JWTSecret)
+	wsHandler := handler.NewWSHandler(hub, queries)
 
 	// Router
 	r := gin.Default()
@@ -98,20 +98,22 @@ func main() {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
 
-	// WebSocket endpoint (auth via query param, not middleware)
+	// WebSocket endpoint — auth via session cookie sent automatically by browser.
 	r.GET("/ws/channels/:id", wsHandler.ServeWS)
 
 	api := r.Group("/api")
 	{
-		auth := api.Group("/auth")
+		authRoutes := api.Group("/auth")
 		{
-			auth.POST("/register", authHandler.Register)
-			auth.POST("/login", authHandler.Login)
+			authRoutes.POST("/register", authHandler.Register)
+			authRoutes.POST("/login", authHandler.Login)
 		}
 
 		protected := api.Group("/")
-		protected.Use(middleware.Auth(cfg.JWTSecret))
+		protected.Use(middleware.Auth(queries))
 		{
+			protected.POST("/auth/logout", authHandler.Logout)
+			protected.GET("/auth/me", authHandler.Me)
 			protected.GET("/channels", channelHandler.ListChannels)
 			protected.POST("/channels", channelHandler.CreateChannel)
 			protected.POST("/channels/:id/messages", messageHandler.SendMessage)

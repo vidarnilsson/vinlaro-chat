@@ -4,12 +4,12 @@ go 1.25.0
 
 require (
 	github.com/gin-gonic/gin v1.10.0
-	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/jackc/pgx/v5 v5.6.0
 	github.com/joho/godotenv v1.5.1
 	github.com/twmb/franz-go v1.21.3
+	github.com/twmb/franz-go/pkg/kadm v1.18.0
 	golang.org/x/crypto v0.51.0
 )
 
@@ -39,7 +39,6 @@ require (
 	github.com/pierrec/lz4/v4 v4.1.26 // indirect
 	github.com/rogpeppe/go-internal v1.15.0 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
-	github.com/twmb/franz-go/pkg/kadm v1.18.0 // indirect
 	github.com/twmb/franz-go/pkg/kmsg v1.13.1 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
 	golang.org/x/arch v0.8.0 // indirect

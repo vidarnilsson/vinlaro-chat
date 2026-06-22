@@ -16,10 +16,14 @@ type Querier interface {
 	// queries/messages.sql
 	CreateMessage(ctx context.Context, arg CreateMessageParams) (Message, error)
 	CreateMessageWithID(ctx context.Context, arg CreateMessageWithIDParams) (Message, error)
+	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
 	// queries/users.sql
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
+	DeleteAllUserSessions(ctx context.Context, userID uuid.UUID) error
+	DeleteSession(ctx context.Context, id string) error
 	GetChannelByID(ctx context.Context, id uuid.UUID) (Channel, error)
 	GetMessagesByChannel(ctx context.Context, arg GetMessagesByChannelParams) ([]GetMessagesByChannelRow, error)
+	GetSession(ctx context.Context, id string) (GetSessionRow, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
 	ListChannels(ctx context.Context) ([]Channel, error)

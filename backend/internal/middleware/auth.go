@@ -1,35 +1,40 @@
 package middleware
 
 import (
+	"database/sql"
+	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
-	"github.com/vidarnilsson/vinlaro-chat/internal/auth"
+	"github.com/vidarnilsson/vinlaro-chat/internal/db"
+	"github.com/vidarnilsson/vinlaro-chat/internal/session"
 )
 
 const UserIDKey = "userID"
 const UsernameKey = "username"
 
-// Auth is a Gin middleware that validates the JWT in the Authorization header.
-// On success it sets userID and username in the context for downstream handlers.
-func Auth(jwtSecret string) gin.HandlerFunc {
+// Auth validates the session cookie and populates userID and username in the
+// Gin context for downstream handlers.
+func Auth(queries *db.Queries) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		header := c.GetHeader("Authorization")
-		if header == "" || !strings.HasPrefix(header, "Bearer ") {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "missing or invalid authorization header"})
+		sessionID := session.GetFromCookie(c)
+		if sessionID == "" {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 			return
 		}
 
-		tokenStr := strings.TrimPrefix(header, "Bearer ")
-		claims, err := auth.ValidateToken(tokenStr, jwtSecret)
+		row, err := queries.GetSession(c.Request.Context(), sessionID)
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
+			if errors.Is(err, sql.ErrNoRows) {
+				c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "session expired or invalid"})
+			} else {
+				c.AbortWithStatusJSON(http.StatusInternalServerError, gin.H{"error": "session lookup failed"})
+			}
 			return
 		}
 
-		c.Set(UserIDKey, claims.UserID)
-		c.Set(UsernameKey, claims.Username)
+		c.Set(UserIDKey, row.UserID.String())
+		c.Set(UsernameKey, row.Username)
 		c.Next()
 	}
 }

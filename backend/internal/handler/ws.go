@@ -1,13 +1,16 @@
 package handler
 
 import (
+	"database/sql"
+	"errors"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
-	"github.com/vidarnilsson/vinlaro-chat/internal/auth"
+	"github.com/vidarnilsson/vinlaro-chat/internal/db"
 	appws "github.com/vidarnilsson/vinlaro-chat/internal/ws"
+	"github.com/vidarnilsson/vinlaro-chat/internal/session"
 )
 
 var upgrader = websocket.Upgrader{
@@ -18,16 +21,18 @@ var upgrader = websocket.Upgrader{
 }
 
 type WSHandler struct {
-	hub       *appws.Hub
-	jwtSecret string
+	hub     *appws.Hub
+	queries *db.Queries
 }
 
-func NewWSHandler(hub *appws.Hub, jwtSecret string) *WSHandler {
-	return &WSHandler{hub: hub, jwtSecret: jwtSecret}
+func NewWSHandler(hub *appws.Hub, queries *db.Queries) *WSHandler {
+	return &WSHandler{hub: hub, queries: queries}
 }
 
 // ServeWS upgrades the connection and registers the client with the hub.
-// GET /ws/channels/:id?token=<jwt>
+// The session cookie is sent automatically by the browser during the WS
+// handshake, so no token query param is needed.
+// GET /ws/channels/:id
 func (h *WSHandler) ServeWS(c *gin.Context) {
 	channelID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
@@ -35,15 +40,18 @@ func (h *WSHandler) ServeWS(c *gin.Context) {
 		return
 	}
 
-	// JWT is passed as a query param because the browser WebSocket API
-	// does not support custom headers during the upgrade handshake.
-	token := c.Query("token")
-	if token == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "missing token"})
+	sessionID := session.GetFromCookie(c)
+	if sessionID == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "not authenticated"})
 		return
 	}
-	if _, err := auth.ValidateToken(token, h.jwtSecret); err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
+
+	if _, err := h.queries.GetSession(c.Request.Context(), sessionID); err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "session expired or invalid"})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "session lookup failed"})
+		}
 		return
 	}
 

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { type Channel, listChannels } from '../api/channels'
 import { type Message, getMessages, sendMessage } from '../api/messages'
+import { logout } from '../api/auth'
 import { useAuth } from '../hooks/useAuth'
 import { useWebSocket } from '../hooks/useWebSocket'
 import { ChannelList } from '../components/ChannelList'
@@ -17,7 +18,7 @@ export function ChatPage() {
   useEffect(() => {
     listChannels()
       .then(setChannels)
-      .catch(() => {}) // non-fatal on load
+      .catch(() => {})
   }, [])
 
   async function handleSelectChannel(channel: Channel) {
@@ -42,9 +43,13 @@ export function ChatPage() {
 
   useWebSocket({
     channelId: activeChannel?.id ?? null,
-    token: auth?.token ?? null,
     onMessage: handleWsMessage,
   })
+
+  async function handleLogout() {
+    await logout().catch(() => {})
+    signOut()
+  }
 
   async function handleSend(content: string) {
     if (!activeChannel || !auth) return
@@ -60,10 +65,8 @@ export function ChatPage() {
 
     try {
       const confirmed = await sendMessage(activeChannel.id, content)
-      // Replace the optimistic message with the server-confirmed one (has real ID).
       setMessages((prev) => prev.map((m) => m.id === optimistic.id ? confirmed : m))
     } catch {
-      // Remove optimistic message on failure.
       setMessages((prev) => prev.filter((m) => m.id !== optimistic.id))
     }
   }
@@ -74,7 +77,7 @@ export function ChatPage() {
         <strong>Vinlaro Chat</strong>
         <span style={{ fontSize: 13, color: '#555' }}>
           {auth?.username}{' '}
-          <button onClick={signOut} style={{ marginLeft: 8, fontSize: 12, cursor: 'pointer' }}>
+          <button onClick={handleLogout} style={{ marginLeft: 8, fontSize: 12, cursor: 'pointer' }}>
             Log out
           </button>
         </span>
