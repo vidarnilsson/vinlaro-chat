@@ -67,6 +67,39 @@ func (q *Queries) CreateMessage(ctx context.Context, arg CreateMessageParams) (M
 	return i, err
 }
 
+const createMessageWithID = `-- name: CreateMessageWithID :one
+INSERT INTO messages (id, channel_id, user_id, content, created_at)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING id, channel_id, user_id, content, created_at
+`
+
+type CreateMessageWithIDParams struct {
+	ID        uuid.UUID `json:"id"`
+	ChannelID uuid.UUID `json:"channel_id"`
+	UserID    uuid.UUID `json:"user_id"`
+	Content   string    `json:"content"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+func (q *Queries) CreateMessageWithID(ctx context.Context, arg CreateMessageWithIDParams) (Message, error) {
+	row := q.db.QueryRowContext(ctx, createMessageWithID,
+		arg.ID,
+		arg.ChannelID,
+		arg.UserID,
+		arg.Content,
+		arg.CreatedAt,
+	)
+	var i Message
+	err := row.Scan(
+		&i.ID,
+		&i.ChannelID,
+		&i.UserID,
+		&i.Content,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getChannelByID = `-- name: GetChannelByID :one
 SELECT id, name, description, created_by, created_at FROM channels
 WHERE id = $1

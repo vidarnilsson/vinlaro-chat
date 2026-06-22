@@ -15,6 +15,7 @@ type Querier interface {
 	CreateChannel(ctx context.Context, arg CreateChannelParams) (Channel, error)
 	// queries/messages.sql
 	CreateMessage(ctx context.Context, arg CreateMessageParams) (Message, error)
+	CreateMessageWithID(ctx context.Context, arg CreateMessageWithIDParams) (Message, error)
 	// queries/users.sql
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	GetChannelByID(ctx context.Context, id uuid.UUID) (Channel, error)

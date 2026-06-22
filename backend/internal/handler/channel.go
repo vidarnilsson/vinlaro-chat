@@ -31,6 +31,9 @@ func (h *ChannelHandler) ListChannels(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to fetch channels"})
 		return
 	}
+	if channels == nil {
+		channels = []db.Channel{}
+	}
 	c.JSON(http.StatusOK, channels)
 }
 

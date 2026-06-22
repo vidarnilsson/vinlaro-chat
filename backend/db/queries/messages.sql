@@ -21,6 +21,11 @@ INSERT INTO messages (channel_id, user_id, content)
 VALUES ($1, $2, $3)
 RETURNING *;
 
+-- name: CreateMessageWithID :one
+INSERT INTO messages (id, channel_id, user_id, content, created_at)
+VALUES ($1, $2, $3, $4, $5)
+RETURNING *;
+
 -- name: GetMessagesByChannel :many
 SELECT
     m.id,

@@ -3,21 +3,26 @@ package main
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/joho/godotenv"
+	"github.com/google/uuid"
 	"github.com/vidarnilsson/vinlaro-chat/config"
 	"github.com/vidarnilsson/vinlaro-chat/internal/db"
 	"github.com/vidarnilsson/vinlaro-chat/internal/handler"
+	"github.com/vidarnilsson/vinlaro-chat/internal/messaging"
 	"github.com/vidarnilsson/vinlaro-chat/internal/middleware"
+	"github.com/vidarnilsson/vinlaro-chat/internal/model"
+	"github.com/vidarnilsson/vinlaro-chat/internal/ws"
 )
 
 func main() {
-	// Load .env file if it exists (ignored in production)
 	if err := godotenv.Load(); err != nil {
 		log.Println("No .env file found, reading from environment")
 	}
@@ -41,33 +46,76 @@ func main() {
 
 	queries := db.New(conn)
 
+	// Kafka producer
+	brokers := strings.Split(cfg.KafkaBrokers, ",")
+	producer, err := messaging.NewProducer(brokers, cfg.KafkaTopicMessages)
+	if err != nil {
+		log.Fatalf("failed to create kafka producer: %v", err)
+	}
+	defer producer.Close()
+	log.Println("✓ Kafka producer ready")
+
+	// WebSocket hub
+	hub := ws.NewHub()
+	go hub.Run()
+	log.Println("✓ WebSocket hub running")
+
+	// API-side Kafka consumer: broadcasts saved messages to WebSocket clients.
+	apiConsumer, err := messaging.NewConsumer(brokers, cfg.KafkaTopicMessages, "chat-api")
+	if err != nil {
+		log.Fatalf("failed to create kafka consumer: %v", err)
+	}
+	defer apiConsumer.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go apiConsumer.Consume(ctx, func(event model.MessageEvent) {
+		payload, err := json.Marshal(event)
+		if err != nil {
+			log.Printf("ws broadcast: marshal error: %v", err)
+			return
+		}
+		channelID, err := uuid.Parse(event.ChannelID)
+		if err != nil {
+			log.Printf("ws broadcast: invalid channel id: %v", err)
+			return
+		}
+		hub.BroadcastToChannel(channelID, payload)
+	})
+	log.Println("✓ API Kafka consumer running (group: chat-api)")
+
 	// Handlers
 	authHandler := handler.NewAuthHandler(queries, cfg)
 	channelHandler := handler.NewChannelHandler(queries)
+	messageHandler := handler.NewMessageHandler(queries, producer)
+	wsHandler := handler.NewWSHandler(hub, cfg.JWTSecret)
 
 	// Router
 	r := gin.Default()
 
-	// Health check
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
 
+	// WebSocket endpoint (auth via query param, not middleware)
+	r.GET("/ws/channels/:id", wsHandler.ServeWS)
+
 	api := r.Group("/api")
 	{
-		// Public routes
 		auth := api.Group("/auth")
 		{
 			auth.POST("/register", authHandler.Register)
 			auth.POST("/login", authHandler.Login)
 		}
 
-		// Protected routes
 		protected := api.Group("/")
 		protected.Use(middleware.Auth(cfg.JWTSecret))
 		{
 			protected.GET("/channels", channelHandler.ListChannels)
 			protected.POST("/channels", channelHandler.CreateChannel)
+			protected.POST("/channels/:id/messages", messageHandler.SendMessage)
+			protected.GET("/channels/:id/messages", messageHandler.GetMessages)
 		}
 	}
 
