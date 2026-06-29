@@ -10,6 +10,7 @@ interface Props {
 
 export function ChannelList({ channels, activeId, onSelect, onCreated }: Props) {
   const [name, setName] = useState('')
+  const [isPrivate, setIsPrivate] = useState(false)
   const [error, setError] = useState('')
   const [creating, setCreating] = useState(false)
 
@@ -19,8 +20,9 @@ export function ChannelList({ channels, activeId, onSelect, onCreated }: Props) 
     setError('')
     setCreating(true)
     try {
-      const ch = await createChannel(name.trim(), '')
+      const ch = await createChannel(name.trim(), '', isPrivate ? 'private' : 'public')
       setName('')
+      setIsPrivate(false)
       onCreated(ch)
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to create channel')
@@ -30,9 +32,11 @@ export function ChannelList({ channels, activeId, onSelect, onCreated }: Props) 
   }
 
   return (
-    <aside style={{ width: 220, borderRight: '1px solid #ddd', padding: 12, display: 'flex', flexDirection: 'column', gap: 8 }}>
-      <strong>Channels</strong>
-      <ul style={{ listStyle: 'none', margin: 0, padding: 0, flex: 1, overflowY: 'auto' }}>
+    <div>
+      <strong style={{ fontSize: 12, textTransform: 'uppercase', color: '#888', letterSpacing: '0.05em' }}>
+        Channels
+      </strong>
+      <ul style={{ listStyle: 'none', margin: '6px 0', padding: 0 }}>
         {channels.map((ch) => (
           <li key={ch.id}>
             <button
@@ -40,14 +44,15 @@ export function ChannelList({ channels, activeId, onSelect, onCreated }: Props) 
               style={{
                 width: '100%',
                 textAlign: 'left',
-                padding: '6px 8px',
+                padding: '5px 8px',
                 background: ch.id === activeId ? '#e0e7ff' : 'transparent',
                 border: 'none',
                 borderRadius: 4,
                 cursor: 'pointer',
+                fontSize: 14,
               }}
             >
-              # {ch.name}
+              {ch.kind === 'private' ? '🔒' : '#'} {ch.name}
             </button>
           </li>
         ))}
@@ -59,11 +64,19 @@ export function ChannelList({ channels, activeId, onSelect, onCreated }: Props) 
           placeholder="New channel"
           style={{ padding: '4px 6px', fontSize: 13 }}
         />
+        <label style={{ fontSize: 12, display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer' }}>
+          <input
+            type="checkbox"
+            checked={isPrivate}
+            onChange={(e) => setIsPrivate(e.target.checked)}
+          />
+          Private
+        </label>
         {error && <span style={{ color: 'red', fontSize: 12 }}>{error}</span>}
         <button type="submit" disabled={creating} style={{ padding: '4px 6px' }}>
           {creating ? 'Creating…' : 'Create'}
         </button>
       </form>
-    </aside>
+    </div>
   )
 }

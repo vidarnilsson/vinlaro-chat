@@ -47,7 +47,10 @@ func (h *MessageHandler) SendMessage(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user"})
 		return
 	}
-	_ = userID
+
+	if !checkChannelAccess(c, h.queries, channelID, userID) {
+		return
+	}
 
 	event := model.MessageEvent{
 		ID:        uuid.New().String(),
@@ -72,6 +75,15 @@ func (h *MessageHandler) GetMessages(c *gin.Context) {
 	channelID, err := uuid.Parse(c.Param("id"))
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid channel id"})
+		return
+	}
+
+	userID, err := uuid.Parse(c.GetString(middleware.UserIDKey))
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid user"})
+		return
+	}
+	if !checkChannelAccess(c, h.queries, channelID, userID) {
 		return
 	}
 

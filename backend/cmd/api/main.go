@@ -90,6 +90,10 @@ func main() {
 	channelHandler := handler.NewChannelHandler(queries)
 	messageHandler := handler.NewMessageHandler(queries, producer)
 	wsHandler := handler.NewWSHandler(hub, queries)
+	dmHandler := handler.NewDMHandler(queries, conn)
+	userHandler := handler.NewUserHandler(queries)
+	friendsHandler := handler.NewFriendsHandler(queries)
+	inviteHandler := handler.NewInviteHandler(queries)
 
 	// Router
 	r := gin.Default()
@@ -118,6 +122,23 @@ func main() {
 			protected.POST("/channels", channelHandler.CreateChannel)
 			protected.POST("/channels/:id/messages", messageHandler.SendMessage)
 			protected.GET("/channels/:id/messages", messageHandler.GetMessages)
+			protected.POST("/channels/:id/invite/:userID", inviteHandler.SendInvite)
+
+			protected.GET("/dm", dmHandler.ListDMs)
+			protected.POST("/dm/:userID", dmHandler.GetOrCreateDM)
+
+			protected.GET("/users", userHandler.SearchUsers)
+
+			protected.GET("/friends", friendsHandler.ListFriends)
+			protected.GET("/friends/requests", friendsHandler.ListPendingRequests)
+			protected.POST("/friends/request/:userID", friendsHandler.SendFriendRequest)
+			protected.POST("/friends/accept/:friendshipID", friendsHandler.AcceptFriendRequest)
+			protected.POST("/friends/decline/:friendshipID", friendsHandler.DeclineFriendRequest)
+			protected.POST("/friends/block/:userID", friendsHandler.BlockUser)
+
+			protected.GET("/invites", inviteHandler.ListPendingInvites)
+			protected.POST("/invites/:inviteID/accept", inviteHandler.AcceptInvite)
+			protected.POST("/invites/:inviteID/decline", inviteHandler.DeclineInvite)
 		}
 	}
 

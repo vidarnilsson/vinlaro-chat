@@ -11,22 +11,44 @@ import (
 )
 
 type Querier interface {
+	AddChannelMember(ctx context.Context, arg AddChannelMemberParams) error
+	AddChannelMemberWithRole(ctx context.Context, arg AddChannelMemberWithRoleParams) error
 	// queries/channels.sql
 	CreateChannel(ctx context.Context, arg CreateChannelParams) (Channel, error)
+	CreateChannelInvite(ctx context.Context, arg CreateChannelInviteParams) (ChannelInvite, error)
 	// queries/messages.sql
 	CreateMessage(ctx context.Context, arg CreateMessageParams) (Message, error)
 	CreateMessageWithID(ctx context.Context, arg CreateMessageWithIDParams) (Message, error)
+	CreatePrivateChannel(ctx context.Context, arg CreatePrivateChannelParams) (Channel, error)
 	CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error)
 	// queries/users.sql
 	CreateUser(ctx context.Context, arg CreateUserParams) (User, error)
 	DeleteAllUserSessions(ctx context.Context, userID uuid.UUID) error
+	DeleteFriendship(ctx context.Context, id uuid.UUID) error
 	DeleteSession(ctx context.Context, id string) error
+	FindExistingDM(ctx context.Context, arg FindExistingDMParams) (uuid.UUID, error)
 	GetChannelByID(ctx context.Context, id uuid.UUID) (Channel, error)
+	GetChannelInvite(ctx context.Context, id uuid.UUID) (ChannelInvite, error)
+	GetChannelMemberRole(ctx context.Context, arg GetChannelMemberRoleParams) (string, error)
+	GetChannelMembers(ctx context.Context, channelID uuid.UUID) ([]GetChannelMembersRow, error)
+	GetExistingInvite(ctx context.Context, arg GetExistingInviteParams) (uuid.UUID, error)
+	GetFriends(ctx context.Context, requesterID uuid.UUID) ([]GetFriendsRow, error)
+	GetFriendship(ctx context.Context, arg GetFriendshipParams) (Friendship, error)
+	GetFriendshipByID(ctx context.Context, id uuid.UUID) (Friendship, error)
 	GetMessagesByChannel(ctx context.Context, arg GetMessagesByChannelParams) ([]GetMessagesByChannelRow, error)
+	GetPendingFriendRequests(ctx context.Context, addresseeID uuid.UUID) ([]GetPendingFriendRequestsRow, error)
+	GetPendingInvites(ctx context.Context, inviteeID uuid.UUID) ([]GetPendingInvitesRow, error)
 	GetSession(ctx context.Context, id string) (GetSessionRow, error)
 	GetUserByEmail(ctx context.Context, email string) (User, error)
 	GetUserByID(ctx context.Context, id uuid.UUID) (User, error)
+	GetUserChannels(ctx context.Context, userID uuid.UUID) ([]Channel, error)
+	GetUserDMs(ctx context.Context, userID uuid.UUID) ([]GetUserDMsRow, error)
+	IsChannelMember(ctx context.Context, arg IsChannelMemberParams) (bool, error)
 	ListChannels(ctx context.Context) ([]Channel, error)
+	SearchUsers(ctx context.Context, arg SearchUsersParams) ([]SearchUsersRow, error)
+	SendFriendRequest(ctx context.Context, arg SendFriendRequestParams) (Friendship, error)
+	UpdateFriendshipStatus(ctx context.Context, arg UpdateFriendshipStatusParams) (Friendship, error)
+	UpdateInviteStatus(ctx context.Context, arg UpdateInviteStatusParams) (ChannelInvite, error)
 }
 
 var _ Querier = (*Queries)(nil)

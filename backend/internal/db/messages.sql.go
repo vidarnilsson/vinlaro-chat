@@ -13,11 +13,28 @@ import (
 	"github.com/google/uuid"
 )
 
+const addChannelMemberWithRole = `-- name: AddChannelMemberWithRole :exec
+INSERT INTO channel_members (channel_id, user_id, role)
+VALUES ($1, $2, $3)
+ON CONFLICT (channel_id, user_id) DO UPDATE SET role = EXCLUDED.role
+`
+
+type AddChannelMemberWithRoleParams struct {
+	ChannelID uuid.UUID `json:"channel_id"`
+	UserID    uuid.UUID `json:"user_id"`
+	Role      string    `json:"role"`
+}
+
+func (q *Queries) AddChannelMemberWithRole(ctx context.Context, arg AddChannelMemberWithRoleParams) error {
+	_, err := q.db.ExecContext(ctx, addChannelMemberWithRole, arg.ChannelID, arg.UserID, arg.Role)
+	return err
+}
+
 const createChannel = `-- name: CreateChannel :one
 
 INSERT INTO channels (name, description, created_by)
 VALUES ($1, $2, $3)
-RETURNING id, name, description, created_by, created_at
+RETURNING id, name, description, created_by, created_at, kind
 `
 
 type CreateChannelParams struct {
@@ -36,6 +53,7 @@ func (q *Queries) CreateChannel(ctx context.Context, arg CreateChannelParams) (C
 		&i.Description,
 		&i.CreatedBy,
 		&i.CreatedAt,
+		&i.Kind,
 	)
 	return i, err
 }
@@ -100,8 +118,34 @@ func (q *Queries) CreateMessageWithID(ctx context.Context, arg CreateMessageWith
 	return i, err
 }
 
+const createPrivateChannel = `-- name: CreatePrivateChannel :one
+INSERT INTO channels (name, description, created_by, kind)
+VALUES ($1, $2, $3, 'private')
+RETURNING id, name, description, created_by, created_at, kind
+`
+
+type CreatePrivateChannelParams struct {
+	Name        string         `json:"name"`
+	Description sql.NullString `json:"description"`
+	CreatedBy   uuid.UUID      `json:"created_by"`
+}
+
+func (q *Queries) CreatePrivateChannel(ctx context.Context, arg CreatePrivateChannelParams) (Channel, error) {
+	row := q.db.QueryRowContext(ctx, createPrivateChannel, arg.Name, arg.Description, arg.CreatedBy)
+	var i Channel
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Description,
+		&i.CreatedBy,
+		&i.CreatedAt,
+		&i.Kind,
+	)
+	return i, err
+}
+
 const getChannelByID = `-- name: GetChannelByID :one
-SELECT id, name, description, created_by, created_at FROM channels
+SELECT id, name, description, created_by, created_at, kind FROM channels
 WHERE id = $1
 `
 
@@ -114,8 +158,26 @@ func (q *Queries) GetChannelByID(ctx context.Context, id uuid.UUID) (Channel, er
 		&i.Description,
 		&i.CreatedBy,
 		&i.CreatedAt,
+		&i.Kind,
 	)
 	return i, err
+}
+
+const getChannelMemberRole = `-- name: GetChannelMemberRole :one
+SELECT role FROM channel_members
+WHERE channel_id = $1 AND user_id = $2
+`
+
+type GetChannelMemberRoleParams struct {
+	ChannelID uuid.UUID `json:"channel_id"`
+	UserID    uuid.UUID `json:"user_id"`
+}
+
+func (q *Queries) GetChannelMemberRole(ctx context.Context, arg GetChannelMemberRoleParams) (string, error) {
+	row := q.db.QueryRowContext(ctx, getChannelMemberRole, arg.ChannelID, arg.UserID)
+	var role string
+	err := row.Scan(&role)
+	return role, err
 }
 
 const getMessagesByChannel = `-- name: GetMessagesByChannel :many
@@ -177,8 +239,48 @@ func (q *Queries) GetMessagesByChannel(ctx context.Context, arg GetMessagesByCha
 	return items, nil
 }
 
+const getUserChannels = `-- name: GetUserChannels :many
+SELECT c.id, c.name, c.description, c.created_by, c.created_at, c.kind FROM channels c
+WHERE c.kind = 'public'
+UNION
+SELECT c.id, c.name, c.description, c.created_by, c.created_at, c.kind FROM channels c
+JOIN channel_members cm ON cm.channel_id = c.id
+WHERE c.kind = 'private' AND cm.user_id = $1
+ORDER BY name ASC
+`
+
+func (q *Queries) GetUserChannels(ctx context.Context, userID uuid.UUID) ([]Channel, error) {
+	rows, err := q.db.QueryContext(ctx, getUserChannels, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Channel
+	for rows.Next() {
+		var i Channel
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.CreatedBy,
+			&i.CreatedAt,
+			&i.Kind,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listChannels = `-- name: ListChannels :many
-SELECT id, name, description, created_by, created_at FROM channels
+SELECT id, name, description, created_by, created_at, kind FROM channels
 ORDER BY name ASC
 `
 
@@ -197,6 +299,7 @@ func (q *Queries) ListChannels(ctx context.Context) ([]Channel, error) {
 			&i.Description,
 			&i.CreatedBy,
 			&i.CreatedAt,
+			&i.Kind,
 		); err != nil {
 			return nil, err
 		}

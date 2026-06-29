@@ -46,12 +46,17 @@ func (h *WSHandler) ServeWS(c *gin.Context) {
 		return
 	}
 
-	if _, err := h.queries.GetSession(c.Request.Context(), sessionID); err != nil {
+	row, err := h.queries.GetSession(c.Request.Context(), sessionID)
+	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			c.JSON(http.StatusUnauthorized, gin.H{"error": "session expired or invalid"})
 		} else {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "session lookup failed"})
 		}
+		return
+	}
+
+	if !checkChannelAccess(c, h.queries, channelID, row.UserID) {
 		return
 	}
 

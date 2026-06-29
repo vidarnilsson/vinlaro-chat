@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS channel_members;
+ALTER TABLE channels DROP COLUMN IF EXISTS kind;

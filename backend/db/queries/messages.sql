@@ -13,6 +13,29 @@ ORDER BY name ASC;
 SELECT * FROM channels
 WHERE id = $1;
 
+-- name: CreatePrivateChannel :one
+INSERT INTO channels (name, description, created_by, kind)
+VALUES ($1, $2, $3, 'private')
+RETURNING *;
+
+-- name: GetUserChannels :many
+SELECT c.* FROM channels c
+WHERE c.kind = 'public'
+UNION
+SELECT c.* FROM channels c
+JOIN channel_members cm ON cm.channel_id = c.id
+WHERE c.kind = 'private' AND cm.user_id = $1
+ORDER BY name ASC;
+
+-- name: AddChannelMemberWithRole :exec
+INSERT INTO channel_members (channel_id, user_id, role)
+VALUES ($1, $2, $3)
+ON CONFLICT (channel_id, user_id) DO UPDATE SET role = EXCLUDED.role;
+
+-- name: GetChannelMemberRole :one
+SELECT role FROM channel_members
+WHERE channel_id = $1 AND user_id = $2;
+
 
 -- queries/messages.sql
 

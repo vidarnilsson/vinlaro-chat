@@ -17,6 +17,32 @@ type Channel struct {
 	Description sql.NullString `json:"description"`
 	CreatedBy   uuid.UUID      `json:"created_by"`
 	CreatedAt   time.Time      `json:"created_at"`
+	Kind        string         `json:"kind"`
+}
+
+type ChannelInvite struct {
+	ID        uuid.UUID `json:"id"`
+	ChannelID uuid.UUID `json:"channel_id"`
+	InviterID uuid.UUID `json:"inviter_id"`
+	InviteeID uuid.UUID `json:"invitee_id"`
+	Status    string    `json:"status"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type ChannelMember struct {
+	ChannelID uuid.UUID `json:"channel_id"`
+	UserID    uuid.UUID `json:"user_id"`
+	JoinedAt  time.Time `json:"joined_at"`
+	Role      string    `json:"role"`
+}
+
+type Friendship struct {
+	ID          uuid.UUID `json:"id"`
+	RequesterID uuid.UUID `json:"requester_id"`
+	AddresseeID uuid.UUID `json:"addressee_id"`
+	Status      string    `json:"status"`
+	CreatedAt   time.Time `json:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at"`
 }
 
 type Message struct {

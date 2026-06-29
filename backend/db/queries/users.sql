@@ -14,3 +14,9 @@ LIMIT 1;
 SELECT * FROM users
 WHERE id = $1
 LIMIT 1;
+
+-- name: SearchUsers :many
+SELECT id, username FROM users
+WHERE username ILIKE $1
+AND id != $2
+LIMIT 10;
